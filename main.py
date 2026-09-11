@@ -69,8 +69,9 @@ class AccountBot:
 
     async def start_game(self):
         self.stop_health_check()
-        await self.send("⚔️ Найти врагов")
-        print(f"[Аккаунт {self.number}] Игра запущена")
+        self.in_battle = False
+        await self.send("/start")
+        print(f"[Аккаунт {self.number}] Проверяем здоровье перед запуском игры")
 
     async def start_health_check(self):
         if self.health_check_task and not self.health_check_task.done():
@@ -106,15 +107,12 @@ class AccountBot:
 
         print(f"[Аккаунт {self.number}] {text[:120].replace(chr(10), ' | ')}")
 
-        # Недостаточно HP для боя: переходим в режим ожидания и
-        # раз в минуту проверяем здоровье через /start.
         if "недостаточно здоровья для сражений" in lower:
             self.in_battle = False
             self.processing_reward = False
             await self.start_health_check()
             return
 
-        # Повышение уровня может прийти как ДО, так и ПОСЛЕ сообщения о победе.
         level_up_match = re.search(r"получил\s+(\d+)\s+.*?уровень", lower)
         if level_up_match:
             self.stats.set_level(int(level_up_match.group(1)))
@@ -122,8 +120,6 @@ class AccountBot:
             await self.update_stats_message()
             return
 
-        # Если это сообщение локации во время ожидания HP, читаем
-        # текущий уровень и здоровье. Не обрабатываем HP врага как своё.
         if self.waiting_for_health:
             level_match = re.search(r"🔸\s*(\d+)", text)
             hp_match = re.search(r"❤️\s*\(\s*(\d+)\s*/\s*(\d+)\s*\)", text)
@@ -232,7 +228,7 @@ async def main():
     for account in account_bots:
         await account.connect()
 
-    print("Все аккаунты подключены. Запускаем игру.")
+    print("Все аккаунты подключены. Проверяем здоровье перед запуском.")
 
     await asyncio.gather(*(account.start_game() for account in account_bots))
     print(f"Запущено аккаунтов: {len(account_bots)}")
