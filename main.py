@@ -37,7 +37,6 @@ class AccountBot:
         self.processing_reward = False
         self.level_up_pending = False
         self.health_check_task = None
-        self.hero_menu_open = False
 
         self.client.add_event_handler(
             self.on_game_message,
@@ -72,7 +71,7 @@ class AccountBot:
         self.stop_health_check()
         self.in_battle = False
         self.waiting_for_health = True
-        print(f"[Аккаунт {self.number}] Проверяем здоровье через кнопку Герой")
+        print(f"[Аккаунт {self.number}] Проверяем здоровье через кнопку Назад")
         await self.check_health()
 
         if self.waiting_for_health and not self.health_check_task:
@@ -92,9 +91,8 @@ class AccountBot:
         if self.in_battle or not self.waiting_for_health:
             return
 
-        self.hero_menu_open = True
-        print(f"[Аккаунт {self.number}] Открываем Героя для проверки HP")
-        await self.send("🚩 Герой")
+        print(f"[Аккаунт {self.number}] Проверяем HP через Назад")
+        await self.send("⬅️️ Назад")
 
     async def _health_check_loop(self):
         while self.waiting_for_health and not self.in_battle:
@@ -110,7 +108,6 @@ class AccountBot:
 
     def stop_health_check(self):
         self.waiting_for_health = False
-        self.hero_menu_open = False
 
         if self.health_check_task and not self.health_check_task.done():
             self.health_check_task.cancel()
@@ -249,9 +246,6 @@ class AccountBot:
                     self.stop_health_check()
                     self.processing_reward = False
                     await self.send("⚔️ Найти врагов")
-                elif self.hero_menu_open:
-                    self.hero_menu_open = False
-                    await self.send("⬅️️ Назад")
                 return
 
     def _parse_rewards(self, text):
