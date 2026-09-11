@@ -87,8 +87,17 @@ class AccountBot:
             await self.send(random.choice(BLOCKS))
             return
 
+        # После блока игра сначала присылает сообщение об ожидании,
+        # поэтому здесь ничего не отправляем. Следующая атака будет
+        # отправлена только после сообщения с результатом хода.
         if "ожидаем завершения хода" in lower:
-            await self.send(random.choice(ATTACKS))
+            return
+
+        # Результат хода содержит "Ход 1", "Ход 2" и т.д.
+        # Только после него можно отправлять следующую атаку.
+        if re.search(r"\bход\s+\d+\b", lower):
+            if self.in_battle:
+                await self.send(random.choice(ATTACKS))
             return
 
         if "ты победил своего врага" in lower:
