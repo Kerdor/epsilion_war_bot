@@ -59,19 +59,21 @@ class AccountBot:
         self.stats.data["stats_message_id"] = message.id
         self.stats.save()
 
-    async def start(self):
+    async def connect(self):
         await self.client.start(phone=self.phone)
         me = await self.client.get_me()
         print(f"[Аккаунт {self.number}] Авторизован: {me.first_name} (@{me.username})")
-
         await self.update_stats_message()
+
+    async def start_game(self):
         await self.send("⚔️ Найти врагов")
+        print(f"[Аккаунт {self.number}] Игра запущена")
 
     async def on_game_message(self, event):
         text = event.raw_text.strip()
         lower = text.lower()
 
-        print(f"[Аккаунт {self.number}] {text[:120].replace(chr(10), ' | ')}")
+        print(f"[Аккаунт {self.number}] {text[:120].replace(chr(10), ' | ') }")
 
         if "начался поиск противника" in lower:
             return
@@ -135,7 +137,17 @@ class AccountBot:
 async def main():
     accounts = [AccountBot(account) for account in ACCOUNTS]
 
-    await asyncio.gather(*(account.start() for account in accounts))
+    print(f"Настроено аккаунтов: {len(accounts)}")
+
+    # Подключаем аккаунты строго по очереди.
+    # Уже подключённый аккаунт ничего не запускает и ждёт остальные.
+    for account in accounts:
+        await account.connect()
+
+    print("Все аккаунты подключены. Запускаем игру.")
+
+    # Только после подключения всех аккаунтов начинаем игру одновременно.
+    await asyncio.gather(*(account.start_game() for account in accounts))
     print(f"Запущено аккаунтов: {len(accounts)}")
 
     await asyncio.gather(*(account.client.run_until_disconnected() for account in accounts))
