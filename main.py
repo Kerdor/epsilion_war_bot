@@ -175,10 +175,12 @@ class AccountBot:
         if "начался поиск противника" in lower:
             return
 
-        if "куда будешь бить?" in lower:
+        if "куда будешь бить?" in lower or "куда бить?" in lower:
             self.stop_health_check()
             self.in_battle = True
-            await self.send(random.choice(ATTACKS))
+            attack = random.choice(ATTACKS)
+            print(f"[Аккаунт {self.number}] Выбираем удар: {attack}")
+            await self.send(attack)
             return
 
         if "что будешь блокировать?" in lower:
@@ -248,16 +250,29 @@ class AccountBot:
                     await self.send("⚔️ Найти врагов")
                 return
 
-    def _parse_rewards(self, text):
-        if "получено в награду" not in text.lower():
-            return
+    def _normalize_reward_name(self, name):
+        clean = name.replace("**", "").strip().lower()
 
+        if "опыт" in clean:
+            return "✨ Опыта"
+
+        if "слав" in clean:
+            return "🏵 Славы"
+
+        return name.replace("**", "").strip()
+
+    def _parse_rewards(self, text):
         for line in text.splitlines():
-            match = re.search(r"^(.+?):\s*([0-9]+(?:[.,][0-9]+)?)$", line.strip())
+            line = line.strip()
+            match = re.search(r"^\*\*(.+?):\*\*\s*([0-9]+(?:[.,][0-9]+)?)$", line)
+
+            if not match:
+                match = re.search(r"^(.+?):\s*([0-9]+(?:[.,][0-9]+)?)$", line)
+
             if not match:
                 continue
 
-            name = match.group(1).strip()
+            name = self._normalize_reward_name(match.group(1))
             amount = match.group(2).replace(",", ".")
 
             try:
