@@ -37,6 +37,7 @@ class AccountBot:
         self.processing_reward = False
         self.level_up_pending = False
         self.health_check_task = None
+        self.hero_menu_open = False
 
         self.client.add_event_handler(
             self.on_game_message,
@@ -91,6 +92,7 @@ class AccountBot:
         if self.in_battle or not self.waiting_for_health:
             return
 
+        self.hero_menu_open = True
         print(f"[Аккаунт {self.number}] Открываем Героя для проверки HP")
         await self.send("🚩 Герой")
 
@@ -108,6 +110,7 @@ class AccountBot:
 
     def stop_health_check(self):
         self.waiting_for_health = False
+        self.hero_menu_open = False
 
         if self.health_check_task and not self.health_check_task.done():
             self.health_check_task.cancel()
@@ -131,13 +134,11 @@ class AccountBot:
         buttons = self.get_reply_buttons(event)
         available = [button for button in buttons if button != "Сбежать"]
 
-        # С щитом варианты защиты содержат 3 части тела.
         shield_blocks = [
             button for button in available
             if len(button.split(",")) == 3
         ]
 
-        # Без щита варианты защиты содержат 2 части тела.
         normal_blocks = [
             button for button in available
             if len(button.split(",")) == 2
@@ -190,8 +191,6 @@ class AccountBot:
         if "ожидаем завершения хода" in lower:
             return
 
-        # В некоторых боях сообщение с вопросом о первом ударе не приходит.
-        # После результата хода выбираем удар для следующего хода.
         if re.search(r"ход\s+\d+", lower):
             self.stop_health_check()
             self.in_battle = True
@@ -250,7 +249,8 @@ class AccountBot:
                     self.stop_health_check()
                     self.processing_reward = False
                     await self.send("⚔️ Найти врагов")
-                else:
+                elif self.hero_menu_open:
+                    self.hero_menu_open = False
                     await self.send("⬅️️ Назад")
                 return
 
