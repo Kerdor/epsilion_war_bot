@@ -78,6 +78,16 @@ class AccountBot:
         if "начался поиск противника" in lower:
             return
 
+        # Повышение уровня после забранной награды полностью восстанавливает HP.
+        # Поэтому новый бой можно начинать сразу, не ожидая сообщения о регене.
+        level_match = re.search(r"получил\s+(\d+)\s+.*?уровень", lower)
+        if level_match and self.processing_reward:
+            self.stats.set_level(int(level_match.group(1)))
+            self.processing_reward = False
+            await self.update_stats_message()
+            await self.send("⚔️ Найти врагов")
+            return
+
         if "куда будешь бить?" in lower:
             self.in_battle = True
             await self.send(random.choice(ATTACKS))
