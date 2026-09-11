@@ -135,22 +135,24 @@ class AccountBot:
 
 
 async def main():
-    accounts = [AccountBot(account) for account in ACCOUNTS]
+    # Дополнительная защита: даже если в старой версии config.py
+    # случайно попался аккаунт без телефона или сессии, он будет пропущен.
+    accounts = [
+        account
+        for account in ACCOUNTS
+        if account.get("phone") and account.get("session_name")
+    ]
 
     print(f"Настроено аккаунтов: {len(accounts)}")
 
-    # Подключаем аккаунты строго по очереди.
-    # Уже подключённый аккаунт ничего не запускает и ждёт остальные.
     for account in accounts:
-        await account.connect()
+        await AccountBot(account).connect()
 
-    print("Все аккаунты подключены. Запускаем игру.")
+    account_bots = [AccountBot(account) for account in accounts]
 
-    # Только после подключения всех аккаунтов начинаем игру одновременно.
-    await asyncio.gather(*(account.start_game() for account in accounts))
-    print(f"Запущено аккаунтов: {len(accounts)}")
-
-    await asyncio.gather(*(account.client.run_until_disconnected() for account in accounts))
+    # Переподключение здесь не нужно — выше аккаунты уже авторизовались.
+    # Поэтому создаём ботов заранее для корректного жизненного цикла клиентов.
+    # Этот блок будет заменён ниже.
 
 
 if __name__ == "__main__":
