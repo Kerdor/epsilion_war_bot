@@ -8,6 +8,7 @@ class Stats:
         self.path.parent.mkdir(parents=True, exist_ok=True)
 
         self.data = {
+            "level": 1,
             "battles": 0,
             "wins": 0,
             "losses": 0,
@@ -33,6 +34,10 @@ class Stats:
             encoding="utf-8",
         )
 
+    def set_level(self, level):
+        self.data["level"] = level
+        self.save()
+
     def add_battle(self, won):
         self.data["battles"] += 1
         self.data["wins" if won else "losses"] += 1
@@ -45,6 +50,7 @@ class Stats:
     def render(self):
         lines = [
             "⚔️ Epsilion War — статистика",
+            f"🔸 Уровень: {self.data['level']}",
             "",
             f"Бои: {self.data['battles']}",
             f"Победы: {self.data['wins']}",
