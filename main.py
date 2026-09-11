@@ -70,8 +70,12 @@ class AccountBot:
     async def start_game(self):
         self.stop_health_check()
         self.in_battle = False
+        self.waiting_for_health = True
         await self.send("/start")
         print(f"[Аккаунт {self.number}] Проверяем здоровье перед запуском игры")
+
+        if not self.health_check_task or self.health_check_task.done():
+            self.health_check_task = asyncio.create_task(self._health_check_loop())
 
     async def start_health_check(self):
         if self.health_check_task and not self.health_check_task.done():
@@ -120,27 +124,6 @@ class AccountBot:
             await self.update_stats_message()
             return
 
-        if self.waiting_for_health:
-            level_match = re.search(r"🔸\s*(\d+)", text)
-            hp_match = re.search(r"❤️\s*\(\s*(\d+)\s*/\s*(\d+)\s*\)", text)
-
-            if level_match and hp_match:
-                level = int(level_match.group(1))
-                current_hp = int(hp_match.group(1))
-                max_hp = int(hp_match.group(2))
-
-                if self.stats.data["level"] != level:
-                    self.stats.set_level(level)
-                    await self.update_stats_message()
-
-                print(f"[Аккаунт {self.number}] HP: {current_hp}/{max_hp}, уровень: {level}")
-
-                if current_hp >= max_hp:
-                    self.stop_health_check()
-                    self.processing_reward = False
-                    await self.send("⚔️ Найти врагов")
-                return
-
         if "начался поиск противника" in lower:
             return
 
@@ -157,9 +140,13 @@ class AccountBot:
         if "ожидаем завершения хода" in lower:
             return
 
-        if re.search(r"\bход\s+\d+\b", lower):
-            if self.in_battle:
-                await self.send(random.choice(ATTACKS))
+        # В некоторых боях сообщение с вопросом о первом ударе не приходит.
+        # После результата хода выбираем удар для следующего хода.
+        if re.search(r"ход\s+\d+", lower):
+            self.stop_health_check()
+            self.in_battle = True
+            print(f"[Аккаунт {self.number}] Выбираем удар для следующего хода")
+            await self.send(random.choice(ATTACKS))
             return
 
         if "ты победил своего врага" in lower:
@@ -193,6 +180,27 @@ class AccountBot:
             self.processing_reward = False
             await self.send("⚔️ Найти врагов")
             return
+
+        if self.waiting_for_health:
+            level_match = re.search(r"🔸\s*(\d+)", text)
+            hp_match = re.search(r"❤️\s*\(\s*(\d+)\s*/\s*(\d+)\s*\)", text)
+
+            if level_match and hp_match:
+                level = int(level_match.group(1))
+                current_hp = int(hp_match.group(1))
+                max_hp = int(hp_match.group(2))
+
+                if self.stats.data["level"] != level:
+                    self.stats.set_level(level)
+                    await self.update_stats_message()
+
+                print(f"[Аккаунт {self.number}] HP: {current_hp}/{max_hp}, уровень: {level}")
+
+                if current_hp >= max_hp:
+                    self.stop_health_check()
+                    self.processing_reward = False
+                    await self.send("⚔️ Найти врагов")
+                return
 
     def _parse_rewards(self, text):
         if "получено в награду" not in text.lower():
