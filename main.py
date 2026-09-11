@@ -36,6 +36,7 @@ class AccountBot:
         self.waiting_for_health = False
         self.processing_reward = False
         self.level_up_pending = False
+        self.health_check_task = None
 
         self.client.add_event_handler(
             self.on_game_message,
@@ -70,17 +71,61 @@ class AccountBot:
         await self.send("⚔️ Найти врагов")
         print(f"[Аккаунт {self.number}] Игра запущена")
 
+    async def start_health_check(self):
+        if self.health_check_task and not self.health_check_task.done():
+            return
+
+        self.waiting_for_health = True
+        self.health_check_task = asyncio.create_task(self._health_check_loop())
+
+    async def _health_check_loop(self):
+        while self.waiting_for_health and not self.in_battle:
+            await asyncio.sleep(60)
+
+            if not self.waiting_for_health or self.in_battle:
+                return
+
+            try:
+                await self.send("/start")
+            except Exception as error:
+                print(f"[Аккаунт {self.number}] Ошибка проверки HP: {error}")
+
+    def stop_health_check(self):
+        self.waiting_for_health = False
+
+        if self.health_check_task and not self.health_check_task.done():
+            self.health_check_task.cancel()
+
+        self.health_check_task = None
+
     async def on_game_message(self, event):
         text = event.raw_text.strip()
         lower = text.lower()
 
         print(f"[Аккаунт {self.number}] {text[:120].replace(chr(10), ' | ') }")
 
+        # Сообщение локации содержит текущий уровень и HP:
+        # 🧝‍♂️️Xuwa 🔸4 ❤️(243/250)
+        location_match = re.search(r"🔸\s*(\d+)\s+❤️\s*\(\s*(\d+)\s*/\s*(\d+)\s*\)", text)
+        if location_match:
+            level = int(location_match.group(1))
+            current_hp = int(location_match.group(2))
+            max_hp = int(location_match.group(3))
+
+            if self.stats.data["level"] != level:
+                self.stats.set_level(level)
+                await self.update_stats_message()
+
+            if self.waiting_for_health and current_hp >= max_hp:
+                self.stop_health_check()
+                self.processing_reward = False
+                await self.send("⚔️ Найти врагов")
+            return
+
         if "начался поиск противника" in lower:
             return
 
-        # Повышение уровня приходит ДО сообщения о победе.
-        # Запоминаем повышение, а новый бой запускаем после забора награды.
+        # Повышение уровня может прийти как ДО, так и ПОСЛЕ сообщения о победе.
         level_match = re.search(r"получил\s+(\d+)\s+.*?уровень", lower)
         if level_match:
             self.stats.set_level(int(level_match.group(1)))
@@ -89,6 +134,7 @@ class AccountBot:
             return
 
         if "куда будешь бить?" in lower:
+            self.stop_health_check()
             self.in_battle = True
             await self.send(random.choice(ATTACKS))
             return
@@ -113,15 +159,16 @@ class AccountBot:
             await self.update_stats_message()
             await self.send("✅ Забрать награду")
 
-            # Повышение уровня полностью восстанавливает HP,
-            # поэтому после получения награды можно сразу начинать новый бой.
             if self.level_up_pending:
                 self.level_up_pending = False
                 self.processing_reward = False
                 await self.send("⚔️ Найти врагов")
+            else:
+                await self.start_health_check()
             return
 
         if any(word in lower for word in ("ты проиграл", "поражение", "проиграл")):
+            self.stop_health_check()
             self.in_battle = False
             self.processing_reward = False
             self.level_up_pending = False
@@ -131,7 +178,7 @@ class AccountBot:
             return
 
         if "ваше здоровье полностью восстановлено" in lower:
-            self.waiting_for_health = False
+            self.stop_health_check()
             self.processing_reward = False
             await self.send("⚔️ Найти врагов")
             return
