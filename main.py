@@ -68,6 +68,7 @@ class AccountBot:
         await self.update_stats_message()
 
     async def start_game(self):
+        self.stop_health_check()
         await self.send("⚔️ Найти врагов")
         print(f"[Аккаунт {self.number}] Игра запущена")
 
@@ -86,6 +87,7 @@ class AccountBot:
                 return
 
             try:
+                print(f"[Аккаунт {self.number}] Проверка HP")
                 await self.send("/start")
             except Exception as error:
                 print(f"[Аккаунт {self.number}] Ошибка проверки HP: {error}")
@@ -102,19 +104,22 @@ class AccountBot:
         text = event.raw_text.strip()
         lower = text.lower()
 
-        print(f"[Аккаунт {self.number}] {text[:120].replace(chr(10), ' | ') }")
+        print(f"[Аккаунт {self.number}] {text[:120].replace(chr(10), ' | ')}")
 
-        # Сообщение локации содержит текущий уровень и HP:
-        # 🧝‍♂️️Xuwa 🔸4 ❤️(243/250)
-        location_match = re.search(r"🔸\s*(\d+)\s+❤️\s*\(\s*(\d+)\s*/\s*(\d+)\s*\)", text)
-        if location_match:
-            level = int(location_match.group(1))
-            current_hp = int(location_match.group(2))
-            max_hp = int(location_match.group(3))
+        # Уровень и HP в сообщении локации могут находиться не рядом.
+        level_match = re.search(r"🔸\s*(\d+)", text)
+        hp_match = re.search(r"❤️\s*\(\s*(\d+)\s*/\s*(\d+)\s*\)", text)
+
+        if level_match and hp_match:
+            level = int(level_match.group(1))
+            current_hp = int(hp_match.group(1))
+            max_hp = int(hp_match.group(2))
 
             if self.stats.data["level"] != level:
                 self.stats.set_level(level)
                 await self.update_stats_message()
+
+            print(f"[Аккаунт {self.number}] HP: {current_hp}/{max_hp}, уровень: {level}")
 
             if self.waiting_for_health and current_hp >= max_hp:
                 self.stop_health_check()
@@ -126,9 +131,9 @@ class AccountBot:
             return
 
         # Повышение уровня может прийти как ДО, так и ПОСЛЕ сообщения о победе.
-        level_match = re.search(r"получил\s+(\d+)\s+.*?уровень", lower)
-        if level_match:
-            self.stats.set_level(int(level_match.group(1)))
+        level_up_match = re.search(r"получил\s+(\d+)\s+.*?уровень", lower)
+        if level_up_match:
+            self.stats.set_level(int(level_up_match.group(1)))
             self.level_up_pending = True
             await self.update_stats_message()
             return
