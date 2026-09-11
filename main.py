@@ -106,28 +106,12 @@ class AccountBot:
 
         print(f"[Аккаунт {self.number}] {text[:120].replace(chr(10), ' | ')}")
 
-        # Уровень и HP в сообщении локации могут находиться не рядом.
-        level_match = re.search(r"🔸\s*(\d+)", text)
-        hp_match = re.search(r"❤️\s*\(\s*(\d+)\s*/\s*(\d+)\s*\)", text)
-
-        if level_match and hp_match:
-            level = int(level_match.group(1))
-            current_hp = int(hp_match.group(1))
-            max_hp = int(hp_match.group(2))
-
-            if self.stats.data["level"] != level:
-                self.stats.set_level(level)
-                await self.update_stats_message()
-
-            print(f"[Аккаунт {self.number}] HP: {current_hp}/{max_hp}, уровень: {level}")
-
-            if self.waiting_for_health and current_hp >= max_hp:
-                self.stop_health_check()
-                self.processing_reward = False
-                await self.send("⚔️ Найти врагов")
-            return
-
-        if "начался поиск противника" in lower:
+        # Недостаточно HP для боя: переходим в режим ожидания и
+        # раз в минуту проверяем здоровье через /start.
+        if "недостаточно здоровья для сражений" in lower:
+            self.in_battle = False
+            self.processing_reward = False
+            await self.start_health_check()
             return
 
         # Повышение уровня может прийти как ДО, так и ПОСЛЕ сообщения о победе.
@@ -136,6 +120,32 @@ class AccountBot:
             self.stats.set_level(int(level_up_match.group(1)))
             self.level_up_pending = True
             await self.update_stats_message()
+            return
+
+        # Если это сообщение локации во время ожидания HP, читаем
+        # текущий уровень и здоровье. Не обрабатываем HP врага как своё.
+        if self.waiting_for_health:
+            level_match = re.search(r"🔸\s*(\d+)", text)
+            hp_match = re.search(r"❤️\s*\(\s*(\d+)\s*/\s*(\d+)\s*\)", text)
+
+            if level_match and hp_match:
+                level = int(level_match.group(1))
+                current_hp = int(hp_match.group(1))
+                max_hp = int(hp_match.group(2))
+
+                if self.stats.data["level"] != level:
+                    self.stats.set_level(level)
+                    await self.update_stats_message()
+
+                print(f"[Аккаунт {self.number}] HP: {current_hp}/{max_hp}, уровень: {level}")
+
+                if current_hp >= max_hp:
+                    self.stop_health_check()
+                    self.processing_reward = False
+                    await self.send("⚔️ Найти врагов")
+                return
+
+        if "начался поиск противника" in lower:
             return
 
         if "куда будешь бить?" in lower:
