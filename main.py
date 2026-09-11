@@ -35,6 +35,7 @@ class AccountBot:
         self.in_battle = False
         self.waiting_for_health = False
         self.processing_reward = False
+        self.level_up_pending = False
 
         self.client.add_event_handler(
             self.on_game_message,
@@ -78,14 +79,13 @@ class AccountBot:
         if "начался поиск противника" in lower:
             return
 
-        # Повышение уровня после забранной награды полностью восстанавливает HP.
-        # Поэтому новый бой можно начинать сразу, не ожидая сообщения о регене.
+        # Повышение уровня приходит ДО сообщения о победе.
+        # Запоминаем повышение, а новый бой запускаем после забора награды.
         level_match = re.search(r"получил\s+(\d+)\s+.*?уровень", lower)
-        if level_match and self.processing_reward:
+        if level_match:
             self.stats.set_level(int(level_match.group(1)))
-            self.processing_reward = False
+            self.level_up_pending = True
             await self.update_stats_message()
-            await self.send("⚔️ Найти врагов")
             return
 
         if "куда будешь бить?" in lower:
@@ -97,14 +97,9 @@ class AccountBot:
             await self.send(random.choice(BLOCKS))
             return
 
-        # После блока игра сначала присылает сообщение об ожидании,
-        # поэтому здесь ничего не отправляем. Следующая атака будет
-        # отправлена только после сообщения с результатом хода.
         if "ожидаем завершения хода" in lower:
             return
 
-        # Результат хода содержит "Ход 1", "Ход 2" и т.д.
-        # Только после него можно отправлять следующую атаку.
         if re.search(r"\bход\s+\d+\b", lower):
             if self.in_battle:
                 await self.send(random.choice(ATTACKS))
@@ -117,11 +112,19 @@ class AccountBot:
             self._parse_rewards(text)
             await self.update_stats_message()
             await self.send("✅ Забрать награду")
+
+            # Повышение уровня полностью восстанавливает HP,
+            # поэтому после получения награды можно сразу начинать новый бой.
+            if self.level_up_pending:
+                self.level_up_pending = False
+                self.processing_reward = False
+                await self.send("⚔️ Найти врагов")
             return
 
         if any(word in lower for word in ("ты проиграл", "поражение", "проиграл")):
             self.in_battle = False
             self.processing_reward = False
+            self.level_up_pending = False
             self.stats.add_battle(won=False)
             await self.update_stats_message()
             await self.send("⚔️ Найти врагов")
@@ -154,8 +157,6 @@ class AccountBot:
 
 
 async def main():
-    # Дополнительная защита от старой версии config.py:
-    # аккаунты без телефона или имени сессии не запускаются.
     accounts = [
         account
         for account in ACCOUNTS
@@ -166,13 +167,11 @@ async def main():
 
     account_bots = [AccountBot(account) for account in accounts]
 
-    # Сначала авторизуем все настроенные аккаунты по очереди.
     for account in account_bots:
         await account.connect()
 
     print("Все аккаунты подключены. Запускаем игру.")
 
-    # И только после этого запускаем игру на всех аккаунтах одновременно.
     await asyncio.gather(*(account.start_game() for account in account_bots))
     print(f"Запущено аккаунтов: {len(account_bots)}")
 
