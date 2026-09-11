@@ -71,10 +71,10 @@ class AccountBot:
         self.stop_health_check()
         self.in_battle = False
         self.waiting_for_health = True
-        await self.send("/start")
-        print(f"[Аккаунт {self.number}] Проверяем здоровье перед запуском игры")
+        print(f"[Аккаунт {self.number}] Проверяем здоровье через кнопку Герой")
+        await self.check_health()
 
-        if not self.health_check_task or self.health_check_task.done():
+        if self.waiting_for_health and not self.health_check_task:
             self.health_check_task = asyncio.create_task(self._health_check_loop())
 
     async def start_health_check(self):
@@ -82,7 +82,17 @@ class AccountBot:
             return
 
         self.waiting_for_health = True
-        self.health_check_task = asyncio.create_task(self._health_check_loop())
+        await self.check_health()
+
+        if self.waiting_for_health and not self.health_check_task:
+            self.health_check_task = asyncio.create_task(self._health_check_loop())
+
+    async def check_health(self):
+        if self.in_battle or not self.waiting_for_health:
+            return
+
+        print(f"[Аккаунт {self.number}] Открываем Героя для проверки HP")
+        await self.send("🚩 Герой")
 
     async def _health_check_loop(self):
         while self.waiting_for_health and not self.in_battle:
@@ -92,8 +102,7 @@ class AccountBot:
                 return
 
             try:
-                print(f"[Аккаунт {self.number}] Проверка HP")
-                await self.send("/start")
+                await self.check_health()
             except Exception as error:
                 print(f"[Аккаунт {self.number}] Ошибка проверки HP: {error}")
 
@@ -241,6 +250,8 @@ class AccountBot:
                     self.stop_health_check()
                     self.processing_reward = False
                     await self.send("⚔️ Найти врагов")
+                else:
+                    await self.send("⬅️️ Назад")
                 return
 
     def _parse_rewards(self, text):
