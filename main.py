@@ -23,6 +23,14 @@ BLOCKS = [
     "Ноги, голова",
 ]
 
+BLOCKS_WITH_SHIELD = [
+    "Голову, грудь, живот",
+    "Грудь, живот, пояс",
+    "Живот, пояс, ноги",
+    "Пояс, ноги, голову",
+    "Ноги, голову, грудь",
+]
+
 
 class AccountBot:
     def __init__(self, account):
@@ -105,6 +113,38 @@ class AccountBot:
 
         self.health_check_task = None
 
+    def get_reply_buttons(self, event):
+        markup = event.message.reply_markup
+        if not markup:
+            return []
+
+        buttons = []
+        for row in markup.rows:
+            for button in row.buttons:
+                if getattr(button, "text", None):
+                    buttons.append(button.text)
+
+        return buttons
+
+    async def choose_block(self, event):
+        buttons = self.get_reply_buttons(event)
+        available = [button for button in buttons if button != "Сбежать"]
+
+        shield_blocks = set(BLOCKS_WITH_SHIELD)
+        normal_blocks = set(BLOCKS)
+
+        if shield_blocks.issubset(available):
+            block = random.choice(BLOCKS_WITH_SHIELD)
+            print(f"[Аккаунт {self.number}] Щит: выбираем защиту: {block}")
+        elif normal_blocks.issubset(available):
+            block = random.choice(BLOCKS)
+            print(f"[Аккаунт {self.number}] Обычная защита: {block}")
+        else:
+            print(f"[Аккаунт {self.number}] Неизвестная клавиатура защиты: {available}")
+            return
+
+        await self.send(block)
+
     async def on_game_message(self, event):
         text = event.raw_text.strip()
         lower = text.lower()
@@ -134,7 +174,7 @@ class AccountBot:
             return
 
         if "что будешь блокировать?" in lower:
-            await self.send(random.choice(BLOCKS))
+            await self.choose_block(event)
             return
 
         if "ожидаем завершения хода" in lower:
