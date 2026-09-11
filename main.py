@@ -199,15 +199,13 @@ class AccountBot:
 
         if "ты победил своего врага" in lower:
             self.in_battle = False
-            self.processing_reward = True
+            self.processing_reward = False
             self.stats.add_battle(won=True)
             self._parse_rewards(text)
             await self.update_stats_message()
-            await self.send("✅ Забрать награду")
 
             if self.level_up_pending:
                 self.level_up_pending = False
-                self.processing_reward = False
                 await self.send("⚔️ Найти врагов")
             else:
                 await self.start_health_check()
