@@ -23,14 +23,6 @@ BLOCKS = [
     "Ноги, голова",
 ]
 
-BLOCKS_WITH_SHIELD = [
-    "Голову, грудь, живот",
-    "Грудь, живот, пояс",
-    "Живот, пояс, ноги",
-    "Пояс, ноги, голову",
-    "Ноги, голову, грудь",
-]
-
 
 class AccountBot:
     def __init__(self, account):
@@ -130,14 +122,23 @@ class AccountBot:
         buttons = self.get_reply_buttons(event)
         available = [button for button in buttons if button != "Сбежать"]
 
-        shield_blocks = set(BLOCKS_WITH_SHIELD)
-        normal_blocks = set(BLOCKS)
+        # С щитом варианты защиты содержат 3 части тела.
+        shield_blocks = [
+            button for button in available
+            if len(button.split(",")) == 3
+        ]
 
-        if shield_blocks.issubset(available):
-            block = random.choice(BLOCKS_WITH_SHIELD)
+        # Без щита варианты защиты содержат 2 части тела.
+        normal_blocks = [
+            button for button in available
+            if len(button.split(",")) == 2
+        ]
+
+        if len(shield_blocks) == 5:
+            block = random.choice(shield_blocks)
             print(f"[Аккаунт {self.number}] Щит: выбираем защиту: {block}")
-        elif normal_blocks.issubset(available):
-            block = random.choice(BLOCKS)
+        elif len(normal_blocks) == 5:
+            block = random.choice(normal_blocks)
             print(f"[Аккаунт {self.number}] Обычная защита: {block}")
         else:
             print(f"[Аккаунт {self.number}] Неизвестная клавиатура защиты: {available}")
